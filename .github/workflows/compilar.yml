@@ -74,7 +74,7 @@ jobs:
       - name: Ejecutar Conversor Nxnative
         run: |
           GAME_DIR="$RUNNER_TEMP/GameFiles"
-          python3 $(find . -name "main.py" -o -name "nxnative.py" | head -n 1) --input "$GAME_DIR/juego.nsp" --keys ./prod.keys --platform ios
+          dotnet run --project ./nxnative.csproj -- --input "$GAME_DIR/juego.nsp" --keys ./prod.keys --platform ios
 
       - name: Generar proyecto con XcodeGen y Xcode
         run: |
