@@ -11,11 +11,6 @@ on:
         options:
           - "iPhone 15 or older (BC fallback)"
           - "iPhone 15 Pro/Pro Max or newer (standard)"
-      profile_id:
-        description: "Optional nxnative profile ID override (leave blank for automatic detection)"
-        required: false
-        type: string
-        default: ""
  
 permissions:
   contents: read
@@ -43,114 +38,45 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.13"
+          python-version: "3.11"
  
       - name: Set up .NET SDK
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: "10.0.x"
+          dotnet-version: "8.0"
  
       - name: Install dependencies
-        shell: bash
         run: |
-          set -euo pipefail
           brew install xcodegen zstd spirv-cross unar
-          python -m pip install --upgrade pip
-          python -m pip install \
-            lz4 capstone fonttools backports.zstd gdown
+          python3 -m pip install --upgrade pip
+          python3 -m pip install lz4 capstone fonttools backports.zstd gdown
  
       - name: Download game files and keys
-        env:
-          GAME_URL: ${{ secrets.Game_URL }}
-          UPDATE_URL: ${{ secrets.Update_URL }}
-          DLC_URL: ${{ secrets.DLC_URL }}
-          KEYS_URL: ${{ secrets.Keys_URL }}
-        shell: bash
         run: |
-          set -euo pipefail
           WORK="$RUNNER_TEMP/nxnative"
           mkdir -p "$WORK"
- 
-          download_file() {
-            local url="$1"
-            local output="$2"
-            local file_id
- 
-            if [[ -z "${url:-}" ]]; then
-              echo "::error::A required download URL is empty."
-              exit 1
-            fi
- 
-            file_id="$(python - "$url" <<'PY'
-          import re
-          import sys
-          from urllib.parse import urlparse, parse_qs
- 
-          url = sys.argv[1].strip()
-          parsed = urlparse(url)
-          query = parse_qs(parsed.query)
-          file_id = None
- 
-          if parsed.netloc.lower() in (
-              "://google.com",
-              "www.://google.com",
-          ):
-              match = re.search(r"/file/d/([^/]+)", parsed.path)
-              if match:
-                  file_id = match.group(1)
-              elif query.get("id"):
-                  file_id = query["id"][0]
- 
-          if not file_id and re.fullmatch(
-              r"[-A-Za-z0-9_]{20,}", url
-          ):
-              file_id = url
- 
-          if not file_id:
-              raise SystemExit(
-                  "Could not extract a Google Drive file ID."
-              )
- 
-          print(file_id)
-          PY
-          )"
- 
-            echo "Downloading $(basename "$output")..."
-            gdown "$file_id" -O "$output"
- 
-            if [[ ! -s "$output" ]]; then
-              echo "::error::Downloaded file is empty."
-              exit 1
-            fi
- 
-            file "$output"
-          }
- 
-          download_file "$GAME_URL" "$WORK/game.download"
-          download_file "$KEYS_URL" "$WORK/prod.keys"
+          
+          # Descarga directa simplificada usando gdown apuntando a tus Secrets
+          gdown "${{ secrets.Game_URL }}" -O "$WORK/game.download"
+          gdown "${{ secrets.Keys_URL }}" -O "$WORK/prod.keys"
           chmod 600 "$WORK/prod.keys"
 
       - name: Procesar archivos del juego
-        shell: bash
         run: |
-          set -euo pipefail
           WORK="$RUNNER_TEMP/nxnative"
           GAME_DIR="$RUNNER_TEMP/GameFiles"
           mkdir -p "$GAME_DIR"
           
-          # Movemos y renombramos el juego descargado a la carpeta final
           mv "$WORK/game.download" "$GAME_DIR/juego.nsp"
           mv "$WORK/prod.keys" ./prod.keys
           echo "Archivos preparados con éxito."
 
       - name: Ejecutar Conversor Nxnative
-        shell: bash
         run: |
           GAME_DIR="$RUNNER_TEMP/GameFiles"
           python3 $(find . -name "main.py" -o -name "nxnative.py" | head -n 1) --input "$GAME_DIR/juego.nsp" --keys ./prod.keys --platform ios
 
       - name: Generar proyecto con XcodeGen y Xcode
-        shell: bash
         run: |
           xcodegen generate
           xcodebuild -project *.xcodeproj -scheme "nxnative-iOS" -configuration Release -sdk iphoneos DEPLOYMENT_LOCATION=YES
