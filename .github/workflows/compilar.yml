@@ -71,11 +71,13 @@ jobs:
           mv "$WORK/prod.keys" ./prod.keys
           echo "Archivos preparados con éxito."
 
-      - name: Ejecutar Conversor Nxnative
+            - name: Ejecutar Conversor Nxnative
         run: |
           GAME_DIR="$RUNNER_TEMP/GameFiles"
-          dotnet run --project ./nxnative.csproj -- --input "$GAME_DIR/juego.nsp" --keys ./prod.keys --platform ios
-
+          # Buscamos el archivo de proyecto .csproj de forma dinámica y lo ejecutamos
+          PROYECTO_PATH=$(find . -name "*.csproj" | head -n 1)
+          dotnet run --project "$PROYECTO_PATH" -- --input "$GAME_DIR/juego.nsp" --keys ./prod.keys --platform ios
+          
       - name: Generar proyecto con XcodeGen y Xcode
         run: |
           xcodegen generate
